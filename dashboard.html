@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Admin – Mr. Abundancia</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f6f8;
+      --white: #ffffff;
+      --border: #e2e6ea;
+      --text: #1a202c;
+      --text-muted: #718096;
+      --gold: #c8952a;
+      --gold-light: #e8b84b;
+      --accent: #2d3748;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* LOGIN */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 44px 40px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .login-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .login-card h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 28px;
+    }
+
+    .login-card input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 0.95rem;
+      outline: none;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+
+    .login-card input:focus { border-color: var(--gold); }
+
+    .btn-login {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-light));
+      color: #080808;
+      border: none;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-login:hover { opacity: 0.9; }
+
+    .login-error {
+      color: #e05c5c;
+      font-size: 0.82rem;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* APP SHELL */
+    #app { display: none; }
+
+    header.app-header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    }
+
+    .header-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--accent);
+    }
+
+    .header-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .btn-logout {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover { color: var(--text); border-color: #aaa; }
+
+    /* MAIN CONTENT */
+    .app-body {
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* STATS ROW */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    /* FILTERS */
+    .filters-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    .filter-btn.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #080808;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover { color: var(--text); border-color: #aaa; }
+
+    /* TABLE */
+    .table-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      background: #f8f9fa;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8f9fa; }
+    tbody tr.selected { background: #fff8ec; }
+
+    td {
+      padding: 13px 16px;
+      font-size: 0.88rem;
+      vertical-align: middle;
+    }
+
+    td.nombre { font-weight: 600; color: var(--accent); }
+
+    .badge-estado {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-nuevo    { background: #ebf4ff; color: #2b6cb0; }
+    .badge-aplica   { background: #f0fff4; color: #276749; }
+    .badge-no_aplica{ background: #fff5f5; color: #c53030; }
+    .badge-seguimiento { background: #fffff0; color: #975a16; }
+
+    .empty-row td {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* SIDE PANEL */
+    .panel-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 200;
+    }
+
+    .side-panel {
+      position: fixed;
+      top: 0;
+      right: -520px;
+      width: 520px;
+      max-width: 95vw;
+      height: 100vh;
+      background: var(--white);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+      z-index: 201;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.28s cubic-bezier(.4,0,.2,1);
+    }
+
+    .side-panel.open { right: 0; }
+
+    .panel-header {
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .panel-meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .panel-close {
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .panel-close:hover { background: #f0f0f0; }
+
+    .panel-status-bar {
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .panel-status-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-right: 4px;
+    }
+
+    .status-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s;
+      background: var(--white);
+      color: var(--text-muted);
+    }
+
+    .status-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .status-btn.active { background: var(--gold); border-color: var(--gold); color: #080808; }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 22px;
+    }
+
+    .panel-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .info-item label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .info-item span {
+      font-size: 0.88rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .analysis-section {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+
+    .analysis-section h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .analysis-text {
+      font-size: 0.85rem;
+      line-height: 1.75;
+      color: #2d3748;
+      white-space: pre-wrap;
+    }
+
+    /* LOADING SPINNER */
+    .spinner-inline {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ddd;
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 640px) {
+      .app-body { padding: 16px; }
+      .panel-info-grid { grid-template-columns: 1fr; }
+      table td:nth-child(4), table th:nth-child(4),
+      table td:nth-child(5), table th:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-badge">La Sociedad del Dinero</div>
+      <h1>Panel de Administración</h1>
+      <p>Ingresa la contraseña para acceder a los leads</p>
+      <input type="password" id="pwd-input" placeholder="Contraseña" />
+      <button class="btn-login" onclick="doLogin()">Entrar</button>
+      <div class="login-error" id="login-error">Contraseña incorrecta</div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-dot"></div>
+        <div>
+          <div class="header-title">Panel Admin – Mr. Abundancia</div>
+          <div class="header-sub">La Sociedad del Dinero</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+    </header>
+
+    <div class="app-body">
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="stat-total">–</div></div>
+        <div class="stat-card"><div class="stat-label">Nuevos</div><div class="stat-value" id="stat-nuevo">–</div></div>
+        <div class="stat-card"><div class="stat-label">Aplica</div><div class="stat-value" id="stat-aplica">–</div></div>
+        <div class="stat-card"><div class="stat-label">No Aplica</div><div class="stat-value" id="stat-no_aplica">–</div></div>
+        <div class="stat-card"><div class="stat-label">Seguimiento</div><div class="stat-value" id="stat-seguimiento">–</div></div>
+      </div>
+
+      <div class="filters-bar">
+        <button class="filter-btn active" data-estado="todos" onclick="setFilter('todos')">Todos</button>
+        <button class="filter-btn" data-estado="nuevo" onclick="setFilter('nuevo')">Nuevo</button>
+        <button class="filter-btn" data-estado="aplica" onclick="setFilter('aplica')">Aplica</button>
+        <button class="filter-btn" data-estado="no_aplica" onclick="setFilter('no_aplica')">No Aplica</button>
+        <button class="filter-btn" data-estado="seguimiento" onclick="setFilter('seguimiento')">Seguimiento</button>
+        <button class="refresh-btn" onclick="loadLeads()">↻ Actualizar</button>
+      </div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Negocio</th>
+              <th>Ingresos actuales</th>
+              <th>Meta</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="leads-tbody">
+            <tr class="empty-row"><td colspan="6"><span class="spinner-inline"></span> Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY & SIDE PANEL -->
+  <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
+  <div class="side-panel" id="side-panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-name" id="panel-nombre">–</div>
+        <div class="panel-meta" id="panel-meta">–</div>
+      </div>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-status-bar">
+      <span class="panel-status-label">Estado:</span>
+      <button class="status-btn" data-s="nuevo" onclick="changeStatus('nuevo')">Nuevo</button>
+      <button class="status-btn" data-s="aplica" onclick="changeStatus('aplica')">Aplica</button>
+      <button class="status-btn" data-s="no_aplica" onclick="changeStatus('no_aplica')">No Aplica</button>
+      <button class="status-btn" data-s="seguimiento" onclick="changeStatus('seguimiento')">Seguimiento</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-info-grid" id="panel-info-grid"></div>
+      <div class="analysis-section">
+        <h4>Análisis generado</h4>
+        <div class="analysis-text" id="panel-analysis">–</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sessionPwd = sessionStorage.getItem('dash_pwd') || '';
+    let allLeads = [];
+    let currentFilter = 'todos';
+    let activeLead = null;
+
+    // ── LOGIN ──
+    function doLogin() {
+      const pwd = document.getElementById('pwd-input').value;
+      if (!pwd) return;
+      verifyPassword(pwd);
+    }
+
+    document.getElementById('pwd-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    async function verifyPassword(pwd) {
+      try {
+        const res = await fetch('/api/get-leads', {
+          headers: { 'x-dashboard-password': pwd },
+        });
+        if (res.status === 401) {
+          document.getElementById('login-error').style.display = 'block';
+          return;
+        }
+        if (!res.ok) throw new Error();
+        sessionPwd = pwd;
+        sessionStorage.setItem('dash_pwd', pwd);
+        const data = await res.json();
+        allLeads = data;
+        showApp();
+      } catch {
+        document.getElementById('login-error').textContent = 'Error de conexión. Intenta de nuevo.';
+        document.getElementById('login-error').style.display = 'block';
+      }
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      renderTable();
+      updateStats();
+    }
+
+    function logout() {
+      sessionStorage.removeItem('dash_pwd');
+      sessionPwd = '';
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('pwd-input').value = '';
+      document.getElementById('login-error').style.display = 'none';
+    }
+
+    // Auto-login if password in session
+    if (sessionPwd) verifyPassword(sessionPwd);
+
+    // ── DATA ──
+    async function loadLeads() {
+      try {
+        const url = currentFilter === 'todos'
+          ? '/api/get-leads'
+          : `/api/get-leads?estado=${currentFilter}`;
+        const res = await fetch(url, {
+          headers: { 'x-dashboard-password': sessionPwd },
+        });
+        if (!res.ok) return;
+        allLeads = await res.json();
+        renderTable();
+        updateStats();
+      } catch {}
+    }
+
+    // ── FILTER ──
+    function setFilter(estado) {
+      currentFilter = estado;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.estado === estado);
+      });
+      loadLeads();
+    }
+
+    // ── STATS ──
+    function updateStats() {
+      const all = allLeads;
+      document.getElementById('stat-total').textContent = all.length;
+      ['nuevo','aplica','no_aplica','seguimiento'].forEach(s => {
+        document.getElementById('stat-' + s).textContent =
+          all.filter(l => l.estado === s).length;
+      });
+    }
+
+    // ── TABLE ──
+    function renderTable() {
+      const tbody = document.getElementById('leads-tbody');
+      if (!allLeads.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No hay leads para este filtro.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = allLeads.map(lead => `
+        <tr onclick="openPanel('${lead.id}')" ${activeLead?.id === lead.id ? 'class="selected"' : ''}>
+          <td class="nombre">${esc(lead.nombre || '–')}</td>
+          <td>${esc(lead.nombre_negocio || '–')}</td>
+          <td>${esc(lead.ingresos_actuales || '–')}</td>
+          <td>${esc(lead.meta_ingresos || '–')}</td>
+          <td>${fmtDate(lead.created_at)}</td>
+          <td><span class="badge-estado badge-${lead.estado || 'nuevo'}">${labelEstado(lead.estado)}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '–';
+      return new Date(iso).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
+    }
+
+    function labelEstado(e) {
+      return { nuevo:'Nuevo', aplica:'Aplica', no_aplica:'No Aplica', seguimiento:'Seguimiento' }[e] || 'Nuevo';
+    }
+
+    // ── PANEL ──
+    function openPanel(id) {
+      const lead = allLeads.find(l => l.id === id);
+      if (!lead) return;
+      activeLead = lead;
+
+      document.getElementById('panel-nombre').textContent = lead.nombre || '–';
+      document.getElementById('panel-meta').textContent =
+        [lead.nombre_negocio, lead.industria, lead.telefono].filter(Boolean).join(' · ') || '–';
+
+      const grid = document.getElementById('panel-info-grid');
+      const fields = [
+        ['Ingresos actuales', lead.ingresos_actuales],
+        ['Meta de ingresos', lead.meta_ingresos],
+        ['Industria', lead.industria],
+        ['Teléfono', lead.telefono],
+        ['Fecha', fmtDate(lead.created_at)],
+        ['Estado', labelEstado(lead.estado)],
+      ];
+      grid.innerHTML = fields.map(([label, val]) => `
+        <div class="info-item"><label>${label}</label><span>${esc(val || '–')}</span></div>
+      `).join('');
+
+      document.getElementById('panel-analysis').textContent = lead.analisis_generado || 'Sin análisis';
+
+      document.querySelectorAll('.status-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.s === (lead.estado || 'nuevo'));
+      });
+
+      document.getElementById('panel-overlay').style.display = 'block';
+      document.getElementById('side-panel').classList.add('open');
+      renderTable();
+    }
+
+    function closePanel() {
+      activeLead = null;
+      document.getElementById('panel-overlay').style.display = 'none';
+      document.getElementById('side-panel').classList.remove('open');
+      renderTable();
+    }
+
+    // ── STATUS CHANGE ──
+    async function changeStatus(newEstado) {
+      if (!activeLead) return;
+      try {
+        const res = await fetch('/api/update-lead', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-dashboard-password': sessionPwd,
+          },
+          body: JSON.stringify({ id: activeLead.id, estado: newEstado }),
+        });
+        if (!res.ok) return;
+
+        activeLead.estado = newEstado;
+        const idx = allLeads.findIndex(l => l.id === activeLead.id);
+        if (idx !== -1) allLeads[idx].estado = newEstado;
+
+        document.querySelectorAll('.status-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.s === newEstado);
+        });
+        updateStats();
+        renderTable();
+      } catch {}
+    }
+  </script>
+
+</body>
+</html>

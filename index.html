@@ -547,6 +547,7 @@
       color: var(--gold);
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 
 <body>
@@ -1204,6 +1205,43 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
 
         analysisText = data.analysis;
 
+        // Save lead to Supabase (non-blocking)
+        fetch('/api/save-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: document.getElementById('nombre').value.trim() || null,
+            telefono: document.getElementById('telefono').value.trim() || null,
+            nombre_negocio: document.getElementById('negocio').value.trim() || null,
+            industria: document.getElementById('industria').value.trim() || null,
+            ingresos_actuales: getRadioValue('ingresos_actuales'),
+            meta_ingresos: document.getElementById('meta-ingresos').value.trim() || null,
+            cuestionario_completo: {
+              tiempo_op: getRadioValue('tiempo_op'),
+              modelo: getCheckboxValues('modelo'),
+              ventas_mes: getRadioValue('ventas_mes'),
+              margen: getRadioValue('margen'),
+              gen_clientes: getCheckboxValues('gen_clientes'),
+              tiempo_dedicado: getRadioValue('tiempo_dedicado'),
+              equipo: getRadioValue('equipo'),
+              sistema: getRadioValue('sistema'),
+              problemas: getCheckboxValues('problemas'),
+              mayor_desafio: getRadioValue('mayor_desafio'),
+              intentos: document.getElementById('intentos').value.trim(),
+              un_problema: document.getElementById('un-problema').value.trim(),
+              resultado_30: document.getElementById('resultado-30').value.trim(),
+              recursos: getCheckboxValues('recursos'),
+              costos_fijos: getRadioValue('costos_fijos'),
+              automatizacion: getRadioValue('automatizacion'),
+              objetivo_principal: document.getElementById('objetivo-principal').value.trim(),
+              motivacion: document.getElementById('motivacion').value.trim(),
+              compromiso: getRadioValue('compromiso'),
+              comentarios: document.getElementById('comentarios').value.trim(),
+            },
+            analisis_generado: data.analysis,
+          }),
+        }).catch(() => {});
+
         document.getElementById('view-loading').style.display = 'none';
         document.getElementById('view-result').style.display = 'block';
         document.getElementById('analysis-output').textContent = analysisText;
@@ -1235,102 +1273,101 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
     }
 
     // ── PDF ──
+    function stripEmoji(str) {
+      return str.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').replace(/[\u2600-\u27BF]/g, '').trim();
+    }
+
     function downloadPDF() {
       if (!analysisText) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 18;
+      const maxW = pageW - margin * 2;
+      let y = margin;
+
       const nombre = document.getElementById('nombre').value.trim() || 'Emprendedor';
       const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
 
-      const content = analysisText
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br/>');
-
-      const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Diagnóstico Mr. Abundancia – ${nombre}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Georgia', serif;
-      font-size: 13pt;
-      color: #1a1a1a;
-      background: #fff;
-      padding: 48px 56px;
-      max-width: 800px;
-      margin: 0 auto;
-      line-height: 1.75;
-    }
-    .doc-header {
-      border-bottom: 2px solid #c8952a;
-      padding-bottom: 20px;
-      margin-bottom: 32px;
-      text-align: center;
-    }
-    .badge {
-      display: inline-block;
-      font-size: 9pt;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #c8952a;
-      font-family: Arial, sans-serif;
-      margin-bottom: 10px;
-    }
-    h1 {
-      font-size: 22pt;
-      color: #111;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-    .meta {
-      font-size: 10pt;
-      color: #888;
-      font-family: Arial, sans-serif;
-    }
-    .body-content {
-      white-space: pre-wrap;
-      font-size: 12pt;
-      line-height: 1.8;
-    }
-    .doc-footer {
-      margin-top: 52px;
-      padding-top: 18px;
-      border-top: 1px solid #ddd;
-      text-align: center;
-      font-size: 9pt;
-      color: #aaa;
-      font-family: Arial, sans-serif;
-    }
-    @media print {
-      body { padding: 0; }
-      @page { margin: 2cm 2.5cm; }
-    }
-  </style>
-</head>
-<body>
-  <div class="doc-header">
-    <div class="badge">La Sociedad del Dinero</div>
-    <h1>Diagnóstico Empresarial</h1>
-    <div class="meta">Preparado para: <strong>${nombre}</strong> &nbsp;|&nbsp; Fecha: ${fecha}</div>
-  </div>
-  <div class="body-content">${content}</div>
-  <div class="doc-footer">
-    Mr. Abundancia – La Sociedad del Dinero &nbsp;·&nbsp; ${fecha}<br/>
-    Este diagnóstico es confidencial y fue generado de forma personalizada.
-  </div>
-  <script>window.onload = function(){ window.print(); }<\/script>
-</body>
-</html>`;
-
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.write(html);
-        win.document.close();
-      } else {
-        alert('Por favor permite las ventanas emergentes para generar el PDF.');
+      function addPageIfNeeded(needed) {
+        if (y + needed > pageH - margin - 12) {
+          doc.addPage();
+          y = margin;
+        }
       }
+
+      // Header
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(200, 149, 42);
+      doc.text('LA SOCIEDAD DEL DINERO', pageW / 2, y, { align: 'center' });
+      y += 6;
+
+      doc.setFontSize(19);
+      doc.setTextColor(17, 17, 17);
+      doc.text('Diagnostico Empresarial', pageW / 2, y, { align: 'center' });
+      y += 7;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(130, 130, 130);
+      doc.text(`Preparado para: ${nombre}   |   ${fecha}`, pageW / 2, y, { align: 'center' });
+      y += 5;
+
+      doc.setDrawColor(200, 149, 42);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y, pageW - margin, y);
+      y += 8;
+
+      // Body
+      const lines = analysisText.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('## ')) {
+          const heading = stripEmoji(trimmed.replace(/^## /, ''));
+          addPageIfNeeded(14);
+          y += 3;
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(160, 100, 20);
+          doc.text(heading, margin, y);
+          y += 2;
+          doc.setDrawColor(200, 149, 42);
+          doc.setLineWidth(0.25);
+          doc.line(margin, y, pageW - margin, y);
+          y += 5;
+        } else if (trimmed === '') {
+          y += 3;
+        } else {
+          const clean = stripEmoji(trimmed);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(30, 30, 30);
+          const wrapped = doc.splitTextToSize(clean, maxW);
+          addPageIfNeeded(wrapped.length * 5 + 2);
+          doc.text(wrapped, margin, y);
+          y += wrapped.length * 5 + 1;
+        }
+      }
+
+      // Footer on every page
+      const total = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= total; p++) {
+        doc.setPage(p);
+        const fy = pageH - 10;
+        doc.setDrawColor(210, 210, 210);
+        doc.setLineWidth(0.25);
+        doc.line(margin, fy - 3, pageW - margin, fy - 3);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(160, 160, 160);
+        doc.text('Mr. Abundancia - La Sociedad del Dinero', margin, fy);
+        doc.text(`${p} / ${total}`, pageW - margin, fy, { align: 'right' });
+      }
+
+      doc.save(`Diagnostico-${nombre.replace(/\s+/g, '-')}.pdf`);
     }
   </script>
 
