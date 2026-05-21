@@ -1,3 +1,5 @@
+export const config = { runtime: 'edge' };
+
 const PROMPT_MAESTRO = `Eres Mr. Abundancia, el consultor estratégico de negocios de La Sociedad del Dinero. Eres directo, poderoso, sin rodeos. Tu misión es entregar un diagnóstico de negocio devastadoramente honesto y accionable basado en el cuestionario del emprendedor.
 
 FILOSOFÍA DE MR. ABUNDANCIA:
@@ -35,31 +37,53 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
 ## 🧠 EL MENSAJE DE MR. ABUNDANCIA
 [Cierre poderoso. Motivación real, no genérica. Un reto concreto para el emprendedor. Firma con "Mr. Abundancia – La Sociedad del Dinero".]`;
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
+export default async function handler(req) {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
+    return new Response(JSON.stringify({ error: 'Método no permitido' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
   }
 
-  const { cuestionario } = req.body || {};
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Cuerpo de solicitud inválido' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
+  }
+
+  const { cuestionario } = body || {};
 
   if (!cuestionario || typeof cuestionario !== 'string' || cuestionario.trim().length < 10) {
-    return res.status(400).json({ error: 'Cuestionario inválido o vacío' });
+    return new Response(JSON.stringify({ error: 'Cuestionario inválido o vacío' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'Configuración del servidor incompleta' });
+    return new Response(JSON.stringify({ error: 'Configuración del servidor incompleta' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
   }
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,7 +92,8 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 2500,
+        max_tokens: 8000,
+        stream: true,
         messages: [
           {
             role: 'user',
@@ -78,22 +103,80 @@ export default async function handler(req, res) {
       }),
     });
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      console.error('Anthropic API error:', response.status, errorBody);
-      return res.status(502).json({ error: 'Error al conectar con el motor de análisis' });
+    if (!anthropicRes.ok) {
+      const errBody = await anthropicRes.json().catch(() => ({}));
+      console.error('Anthropic API error:', anthropicRes.status, errBody);
+      return new Response(JSON.stringify({ error: 'Error al conectar con el motor de análisis' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+      });
     }
 
-    const data = await response.json();
-    const analysis = data?.content?.[0]?.text;
+    const encoder = new TextEncoder();
 
-    if (!analysis) {
-      return res.status(502).json({ error: 'Respuesta inválida del motor de análisis' });
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = anthropicRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-    return res.status(200).json({ analysis });
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data: ')) continue;
+
+              const data = trimmed.slice(6).trim();
+              if (!data || data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (
+                  parsed.type === 'content_block_delta' &&
+                  parsed.delta?.type === 'text_delta' &&
+                  parsed.delta?.text
+                ) {
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`)
+                  );
+                }
+              } catch {
+                // skip malformed SSE lines
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Stream error:', err);
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        ...CORS_HEADERS,
+      },
+    });
   } catch (err) {
     console.error('Handler error:', err);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    return new Response(JSON.stringify({ error: 'Error interno del servidor' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
   }
 }

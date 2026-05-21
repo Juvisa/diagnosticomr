@@ -1186,9 +1186,45 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
     async function submitForm() {
       const cuestionario = buildCuestionario();
 
+      // Capture form data upfront before switching views
+      const leadData = {
+        nombre: document.getElementById('nombre').value.trim() || null,
+        telefono: document.getElementById('telefono').value.trim() || null,
+        nombre_negocio: document.getElementById('negocio').value.trim() || null,
+        industria: document.getElementById('industria').value.trim() || null,
+        ingresos_actuales: getRadioValue('ingresos_actuales'),
+        meta_ingresos: document.getElementById('meta-ingresos').value.trim() || null,
+        cuestionario_completo: {
+          tiempo_op: getRadioValue('tiempo_op'),
+          modelo: getCheckboxValues('modelo'),
+          ventas_mes: getRadioValue('ventas_mes'),
+          margen: getRadioValue('margen'),
+          gen_clientes: getCheckboxValues('gen_clientes'),
+          tiempo_dedicado: getRadioValue('tiempo_dedicado'),
+          equipo: getRadioValue('equipo'),
+          sistema: getRadioValue('sistema'),
+          problemas: getCheckboxValues('problemas'),
+          mayor_desafio: getRadioValue('mayor_desafio'),
+          intentos: document.getElementById('intentos').value.trim(),
+          un_problema: document.getElementById('un-problema').value.trim(),
+          resultado_30: document.getElementById('resultado-30').value.trim(),
+          recursos: getCheckboxValues('recursos'),
+          costos_fijos: getRadioValue('costos_fijos'),
+          automatizacion: getRadioValue('automatizacion'),
+          objetivo_principal: document.getElementById('objetivo-principal').value.trim(),
+          motivacion: document.getElementById('motivacion').value.trim(),
+          compromiso: getRadioValue('compromiso'),
+          comentarios: document.getElementById('comentarios').value.trim(),
+        },
+      };
+
       document.getElementById('view-form').style.display = 'none';
       document.getElementById('view-loading').style.display = 'flex';
       document.getElementById('view-result').style.display = 'none';
+
+      const outputEl = document.getElementById('analysis-output');
+      outputEl.textContent = '';
+      analysisText = '';
 
       try {
         const res = await fetch('/api/analyze', {
@@ -1197,55 +1233,50 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
           body: JSON.stringify({ cuestionario }),
         });
 
-        const data = await res.json();
-
-        if (!res.ok || !data.analysis) {
-          throw new Error(data.error || 'Error desconocido');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Error desconocido' }));
+          throw new Error(errData.error || 'Error desconocido');
         }
 
-        analysisText = data.analysis;
+        // Switch to result view as soon as connection is established
+        document.getElementById('view-loading').style.display = 'none';
+        document.getElementById('view-result').style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        // Save lead to Supabase (non-blocking)
+        // Read streaming SSE response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (!data || data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) {
+                analysisText += parsed.text;
+                outputEl.textContent = analysisText;
+              }
+            } catch { /* skip malformed chunks */ }
+          }
+        }
+
+        // Save lead to Supabase after full response received (non-blocking)
         fetch('/api/save-lead', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nombre: document.getElementById('nombre').value.trim() || null,
-            telefono: document.getElementById('telefono').value.trim() || null,
-            nombre_negocio: document.getElementById('negocio').value.trim() || null,
-            industria: document.getElementById('industria').value.trim() || null,
-            ingresos_actuales: getRadioValue('ingresos_actuales'),
-            meta_ingresos: document.getElementById('meta-ingresos').value.trim() || null,
-            cuestionario_completo: {
-              tiempo_op: getRadioValue('tiempo_op'),
-              modelo: getCheckboxValues('modelo'),
-              ventas_mes: getRadioValue('ventas_mes'),
-              margen: getRadioValue('margen'),
-              gen_clientes: getCheckboxValues('gen_clientes'),
-              tiempo_dedicado: getRadioValue('tiempo_dedicado'),
-              equipo: getRadioValue('equipo'),
-              sistema: getRadioValue('sistema'),
-              problemas: getCheckboxValues('problemas'),
-              mayor_desafio: getRadioValue('mayor_desafio'),
-              intentos: document.getElementById('intentos').value.trim(),
-              un_problema: document.getElementById('un-problema').value.trim(),
-              resultado_30: document.getElementById('resultado-30').value.trim(),
-              recursos: getCheckboxValues('recursos'),
-              costos_fijos: getRadioValue('costos_fijos'),
-              automatizacion: getRadioValue('automatizacion'),
-              objetivo_principal: document.getElementById('objetivo-principal').value.trim(),
-              motivacion: document.getElementById('motivacion').value.trim(),
-              compromiso: getRadioValue('compromiso'),
-              comentarios: document.getElementById('comentarios').value.trim(),
-            },
-            analisis_generado: data.analysis,
-          }),
+          body: JSON.stringify({ ...leadData, analisis_generado: analysisText }),
         }).catch(() => {});
-
-        document.getElementById('view-loading').style.display = 'none';
-        document.getElementById('view-result').style.display = 'block';
-        document.getElementById('analysis-output').textContent = analysisText;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
 
       } catch (err) {
         document.getElementById('view-loading').style.display = 'none';
