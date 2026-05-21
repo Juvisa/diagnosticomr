@@ -236,9 +236,36 @@
       color: var(--text-muted);
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .refresh-btn:hover { color: var(--text); border-color: #aaa; }
+
+    .refresh-btn.spinning .refresh-icon { animation: spin 0.7s linear infinite; display: inline-block; }
+
+    .last-updated-bar {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #48bb78;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
 
     /* TABLE */
     .table-card {
@@ -510,13 +537,18 @@
         <div class="stat-card"><div class="stat-label">Seguimiento</div><div class="stat-value" id="stat-seguimiento">–</div></div>
       </div>
 
+      <div class="last-updated-bar">
+        <span class="live-dot"></span>
+        <span id="last-updated-text">Cargando datos...</span>
+        <span id="countdown-text"></span>
+      </div>
       <div class="filters-bar">
         <button class="filter-btn active" data-estado="todos" onclick="setFilter('todos')">Todos</button>
         <button class="filter-btn" data-estado="nuevo" onclick="setFilter('nuevo')">Nuevo</button>
         <button class="filter-btn" data-estado="aplica" onclick="setFilter('aplica')">Aplica</button>
         <button class="filter-btn" data-estado="no_aplica" onclick="setFilter('no_aplica')">No Aplica</button>
         <button class="filter-btn" data-estado="seguimiento" onclick="setFilter('seguimiento')">Seguimiento</button>
-        <button class="refresh-btn" onclick="loadLeads()">↻ Actualizar</button>
+        <button class="refresh-btn" id="refresh-btn" onclick="loadLeads(true)"><span class="refresh-icon">↻</span> Actualizar</button>
       </div>
 
       <div class="table-card">
@@ -568,6 +600,10 @@
   <script>
     let sessionPwd = sessionStorage.getItem('dash_pwd') || '';
     let allLeads = [];
+    let autoRefreshInterval = null;
+    let countdownInterval = null;
+    let secondsSinceRefresh = 0;
+    const AUTO_REFRESH_SECONDS = 30;
     let currentFilter = 'todos';
     let activeLead = null;
 
@@ -608,9 +644,13 @@
       document.getElementById('app').style.display = 'block';
       renderTable();
       updateStats();
+      updateLastUpdatedLabel();
+      startAutoRefresh();
     }
 
     function logout() {
+      clearInterval(autoRefreshInterval);
+      clearInterval(countdownInterval);
       sessionStorage.removeItem('dash_pwd');
       sessionPwd = '';
       document.getElementById('app').style.display = 'none';
@@ -623,7 +663,9 @@
     if (sessionPwd) verifyPassword(sessionPwd);
 
     // ── DATA ──
-    async function loadLeads() {
+    async function loadLeads(manual = false) {
+      const btn = document.getElementById('refresh-btn');
+      if (btn) btn.classList.add('spinning');
       try {
         const url = currentFilter === 'todos'
           ? '/api/get-leads'
@@ -635,8 +677,46 @@
         allLeads = await res.json();
         renderTable();
         updateStats();
+        updateLastUpdatedLabel();
+        resetCountdown();
       } catch {}
+      finally {
+        if (btn) btn.classList.remove('spinning');
+      }
     }
+
+    function updateLastUpdatedLabel() {
+      const now = new Date();
+      const time = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('last-updated-text').textContent = `Última actualización: ${time} · ${allLeads.length} lead${allLeads.length !== 1 ? 's' : ''}`;
+      secondsSinceRefresh = 0;
+    }
+
+    function resetCountdown() {
+      clearInterval(countdownInterval);
+      secondsSinceRefresh = 0;
+      countdownInterval = setInterval(() => {
+        secondsSinceRefresh++;
+        const remaining = AUTO_REFRESH_SECONDS - secondsSinceRefresh;
+        const el = document.getElementById('countdown-text');
+        if (el) el.textContent = remaining > 0 ? `· Auto-actualiza en ${remaining}s` : '';
+        if (secondsSinceRefresh >= AUTO_REFRESH_SECONDS) {
+          loadLeads();
+        }
+      }, 1000);
+    }
+
+    function startAutoRefresh() {
+      clearInterval(autoRefreshInterval);
+      resetCountdown();
+    }
+
+    // Refresh when tab becomes visible again
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && sessionPwd) {
+        loadLeads();
+      }
+    });
 
     // ── FILTER ──
     function setFilter(estado) {
