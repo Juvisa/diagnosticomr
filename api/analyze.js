@@ -43,8 +43,33 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// ── Guarda el lead directamente en Supabase desde el servidor ──
+async function saveLeadToSupabase(leadData) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('Supabase env vars missing');
+    return;
+  }
+  try {
+    const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/leads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(leadData),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('Supabase save error:', res.status, err);
+    }
+  } catch (err) {
+    console.error('Supabase fetch error:', err);
+  }
+}
+
 export default async function handler(req) {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
@@ -66,7 +91,11 @@ export default async function handler(req) {
     });
   }
 
-  const { cuestionario } = body || {};
+  const {
+    cuestionario,
+    nombre, telefono, nombre_negocio, industria,
+    ingresos_actuales, meta_ingresos, cuestionario_completo,
+  } = body || {};
 
   if (!cuestionario || typeof cuestionario !== 'string' || cuestionario.trim().length < 10) {
     return new Response(JSON.stringify({ error: 'Cuestionario inválido o vacío' }), {
@@ -119,6 +148,7 @@ export default async function handler(req) {
         const reader = anthropicRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let fullAnalysis = '';  // acumula el análisis completo en el servidor
 
         try {
           while (true) {
@@ -147,8 +177,10 @@ export default async function handler(req) {
                   parsed.delta?.type === 'text_delta' &&
                   parsed.delta?.text
                 ) {
+                  const text = parsed.delta.text;
+                  fullAnalysis += text;
                   controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`)
+                    encoder.encode(`data: ${JSON.stringify({ text })}\n\n`)
                   );
                 }
               } catch {
@@ -156,6 +188,19 @@ export default async function handler(req) {
               }
             }
           }
+
+          // ✅ Guardado en Supabase desde el servidor — siempre se ejecuta
+          await saveLeadToSupabase({
+            nombre: nombre || null,
+            telefono: telefono || null,
+            nombre_negocio: nombre_negocio || null,
+            industria: industria || null,
+            ingresos_actuales: ingresos_actuales || null,
+            meta_ingresos: meta_ingresos || null,
+            cuestionario_completo: cuestionario_completo || null,
+            analisis_generado: fullAnalysis,
+          });
+
         } catch (err) {
           console.error('Stream error:', err);
           controller.error(err);

@@ -1230,7 +1230,17 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cuestionario }),
+          // ✅ Se envía todo al servidor — el guardado ocurre server-side
+          body: JSON.stringify({
+            cuestionario,
+            nombre: leadData.nombre,
+            telefono: leadData.telefono,
+            nombre_negocio: leadData.nombre_negocio,
+            industria: leadData.industria,
+            ingresos_actuales: leadData.ingresos_actuales,
+            meta_ingresos: leadData.meta_ingresos,
+            cuestionario_completo: leadData.cuestionario_completo,
+          }),
         });
 
         if (!res.ok) {
@@ -1271,12 +1281,7 @@ FORMATO OBLIGATORIO DE RESPUESTA (usa exactamente estas secciones con sus emojis
           }
         }
 
-        // Save lead to Supabase after full response received (non-blocking)
-        fetch('/api/save-lead', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...leadData, analisis_generado: analysisText }),
-        }).catch(() => {});
+        // ✅ Guardado manejado por el servidor — no se necesita llamada adicional
 
       } catch (err) {
         document.getElementById('view-loading').style.display = 'none';
