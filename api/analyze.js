@@ -43,12 +43,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// ── Guarda el lead directamente en Supabase desde el servidor ──
 async function saveLeadToSupabase(leadData) {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('Supabase env vars missing');
-    return;
-  }
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) return;
   try {
     const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/leads`, {
       method: 'POST',
@@ -148,12 +144,24 @@ export default async function handler(req) {
         const reader = anthropicRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let fullAnalysis = '';  // acumula el análisis completo en el servidor
+        let fullAnalysis = '';
 
         try {
           while (true) {
             const { done, value } = await reader.read();
+
             if (done) {
+              // ✅ Guardar en Supabase ANTES de cerrar — Edge Function sigue vivo aquí
+              await saveLeadToSupabase({
+                nombre: nombre || null,
+                telefono: telefono || null,
+                nombre_negocio: nombre_negocio || null,
+                industria: industria || null,
+                ingresos_actuales: ingresos_actuales || null,
+                meta_ingresos: meta_ingresos || null,
+                cuestionario_completo: cuestionario_completo || null,
+                analisis_generado: fullAnalysis,
+              });
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
               break;
@@ -188,19 +196,6 @@ export default async function handler(req) {
               }
             }
           }
-
-          // ✅ Guardado en Supabase desde el servidor — siempre se ejecuta
-          await saveLeadToSupabase({
-            nombre: nombre || null,
-            telefono: telefono || null,
-            nombre_negocio: nombre_negocio || null,
-            industria: industria || null,
-            ingresos_actuales: ingresos_actuales || null,
-            meta_ingresos: meta_ingresos || null,
-            cuestionario_completo: cuestionario_completo || null,
-            analisis_generado: fullAnalysis,
-          });
-
         } catch (err) {
           console.error('Stream error:', err);
           controller.error(err);
